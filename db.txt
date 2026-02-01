@@ -1,0 +1,159 @@
+Table users {
+  id integer [primary key]
+  username varchar [not null]
+  email varchar
+  role enum('student', 'instructor', 'admin')
+  created_at timestamp
+}
+
+Table favorite {
+  id integer [primary key]
+  user_id integer [not null]
+  entity_type enum('blog', 'course')
+  entity_id integer
+}
+
+Ref: favorite.user_id < users.id
+Ref: favorite.entity_id < blogs.id
+Ref: favorite.entity_id < courses.id
+
+// ---------- Content: Blogs ----------
+Table blogs {
+  id integer [primary key]
+  author_id integer [not null]
+  title varchar [not null]
+  slug varchar
+  content text 
+  status enum("draft", "published") // 'draft' | 'published'
+  view integer
+  published_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+Ref: blogs.author_id > users.id
+
+
+// One thread per entity (enforce in app; DBML can't express unique(entity_type, entity_id) reliably)
+Table comments {
+  id integer [primary key]
+  entity_id integer [not null] // blog Id or Course Id
+  entity_type enum("blog", "course")
+  author_id integer [not null]
+  body text // editor state for comment (or plain text)
+  status enum("DEFAULT", "EDITED")
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table replys {
+  id integer [primary key]
+  commentId integer [not null] // comment Id
+  author_id integer [not null] // user ID
+  body text // editor state for comment (or plain text)
+  status enum("DEFALT", "EDITED")
+  created_at timestamp
+  updated_at timestamp
+}
+
+Ref: comments.id > replys.commentId
+Ref: users.id > comments.author_id
+Ref: users.id > replys.author_id
+Ref: comments.entity_id > blogs.id
+Ref: comments.entity_id > courses.id
+
+// ---------- Likes (Blog + Comment only; no unlike feature, just delete row) ----------
+Table likes {
+  id integer [primary key]
+  user_id integer [not null]
+  entity_id integer [not null]   // blog.id or comment.id (polymorphic)
+  entity_type enum("blog", "course", "comment", "reply")
+  created_at timestamp
+}
+
+// to find entity where entityId based on entity_type
+
+// likes where entity_id = blogId
+// where blogs Id AND userId
+
+Ref: likes.entity_id < blogs.id
+Ref: likes.entity_id < courses.id
+Ref: likes.entity_id < comments.id
+Ref: likes.entity_id < replys.id
+
+
+// In real DB you must enforce unique(user_id, entity_type, entity_id)
+Ref: likes.user_id > users.id
+
+// ---------- Commerce / Purchases ----------
+Table orders {
+  id integer [primary key]
+  user_id integer [not null]
+  status varchar [not null] // 'pending' | 'paid' | 'failed' | 'refunded'
+  total_cents integer [not null]
+  currency varchar [not null]
+  payment_provider varchar // 'stripe'
+  provider_payment_id varchar
+  created_at timestamp
+  paid_at timestamp
+}
+
+Ref: orders.user_id > users.id
+
+// ---------- Content: Courses ----------
+Table courses {
+  id integer [primary key]
+  title varchar [not null]
+  slug varchar
+  description text
+  price integer [not null]
+  discount_percent integer
+  sale_price integer [not null]
+  status enum("draft", "published", "archived") 
+  created_at timestamp
+  updated_at timestamp
+}
+
+// ---------- Content: Unit ----------
+Table units {
+  id integer [primary key]
+  course_id integer 
+  title varchar [not null]
+  unit_order integer
+  created_at timestamp
+  updated_at timestamp
+}
+
+// ---------- Content: Assignments ----------
+Table lessons {
+  id integer [primary key]
+  unit_id integer
+  title varchar [not null]
+  description text [not null]
+  type enum("assignment", "homework", "lesson") [not null]
+  video_url varchar // Optional video for the assignment
+  lesson_order integer
+  created_at timestamp
+  updated_at timestamp
+}
+
+
+// ---------- Content: Student Assignment Submissions ----------
+Table file_submissions {
+  id integer [primary key]
+  lesson_id integer
+  student_id integer [not null] // Reference to users table
+  file_url varchar [not null] // google drive, github link
+  submitted_at timestamp [not null]
+  grade integer // Optional grading
+  feedback text // Teacher feedback
+  status enum("submitted", "graded", "returned")
+  created_at timestamp
+  updated_at timestamp
+}
+
+Ref: units.course_id > courses.id
+Ref: lessons.unit_id > units.id
+Ref: file_submissions.lesson_id > lessons.id [delete: cascade]
+
+
